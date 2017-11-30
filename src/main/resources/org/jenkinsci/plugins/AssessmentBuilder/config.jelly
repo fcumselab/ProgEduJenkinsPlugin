@@ -3,7 +3,7 @@
     <f:entry title="${%JobName}" field="jobName">
         <f:textbox />
     </f:entry>
-    <f:entry title="${%TestFilePath}" field="testFilePath">
+    <f:entry title="${%TestFileName}" field="testFileName">
         <f:textbox />
     </f:entry>
 </j:jelly>
