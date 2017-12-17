@@ -6,4 +6,10 @@
     <f:entry title="${%TestFileName}" field="testFileName">
         <f:textbox />
     </f:entry>
+    <f:entry title="${%TestFileUrl}" field="testFileUrl">
+        <f:textbox />
+    </f:entry>
+    <f:entry title="${%TestFileChecksum}" field="testFileChecksum">
+        <f:textbox />
+    </f:entry>
 </j:jelly>

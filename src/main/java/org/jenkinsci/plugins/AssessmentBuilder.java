@@ -34,18 +34,25 @@ public class AssessmentBuilder extends Builder implements SimpleBuildStep {
   private final static String jenkinsHomeDir = "/var/jenkins_home";
   private final static String testDir = jenkinsHomeDir + "/tests";
   private final static String workspaceDir = jenkinsHomeDir + "/workspace";
+
   private String jobName = ""; // for workspace
   private String testFileName = ""; // tomcat test zip file path
   // ex. oop-hw1
+  private String testFileUrl = "";
+  // http://140.134.26.71:10088/ProgEdu/webapi/jenkins/getTestFile?filePath=
+  private String testFileChecksum = "";
+  // http://140.134.26.71:10088/ProgEdu/webapi/jenkins/getTestFile?checksum=
   private String testFilePath = testDir + "/" + testFileName;
 
   String extractFileOutput = "";
   String throwOutput = "";
 
   @DataBoundConstructor
-  public AssessmentBuilder(String jobName, String testFileName) {
+  public AssessmentBuilder(String jobName, String testFileName, String testFileUrl, String testFilePath) {
     this.jobName = jobName;
     this.testFileName = testFileName;
+    this.testFileUrl = testFileUrl;
+    this.testFilePath = testFilePath;
 
     // /var/jenkins_home/tests/oop-hw1
     testFilePath = testDir + "/" + testFileName;
@@ -57,6 +64,14 @@ public class AssessmentBuilder extends Builder implements SimpleBuildStep {
 
   public String getTestFileName() {
     return testFileName;
+  }
+
+  public String getTestFileUrl() {
+    return testFileUrl;
+  }
+
+  public String getTestFilePath() {
+    return testFilePath;
   }
 
   public String setUpCpCommand() {
