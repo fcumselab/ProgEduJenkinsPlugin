@@ -6,6 +6,9 @@
     <f:entry title="${%TestFileName}" field="testFileName">
         <f:textbox />
     </f:entry>
+    <f:entry title="${%ProDetailUrl}" field="proDetailUrl">
+        <f:textbox />
+    </f:entry>
     <f:entry title="${%TestFileUrl}" field="testFileUrl">
         <f:textbox />
     </f:entry>

@@ -7,6 +7,7 @@ import java.io.FileInputStream;
 import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.InputStreamReader;
+import java.net.HttpURLConnection;
 import java.net.URL;
 import java.nio.channels.Channels;
 import java.nio.channels.ReadableByteChannel;
@@ -15,6 +16,7 @@ import java.util.zip.ZipInputStream;
 
 import org.apache.commons.io.FileUtils;
 import org.jenkinsci.Symbol;
+import org.json.JSONObject;
 import org.kohsuke.stapler.DataBoundConstructor;
 
 import hudson.Extension;
@@ -38,24 +40,25 @@ public class AssessmentBuilder extends Builder implements SimpleBuildStep {
   private String jobName = ""; // for workspace
   private String testFileName = ""; // tomcat test zip file path
   // ex. oop-hw1
+  private String proDetailUrl = "";
+  // http://140.134.26.71:10088/ProgEdu/webapi/project/checksum?proName=OOP-HW1
   private String testFileUrl = "";
-  // http://140.134.26.71:10088/ProgEdu/webapi/jenkins/getTestFile?filePath=
+  // http://140.134.26.71:10088/ProgEdu/webapi/jenkins/getTestFile?filePath=/usr/local/tomcat/temp/test/oop-hw1.zip
   private String testFileChecksum = "";
-  // http://140.134.26.71:10088/ProgEdu/webapi/jenkins/getTestFile?checksum=
-  private String testFilePath = testDir + "/" + testFileName;
+  // 12345678
+  private String testFilePath = "";
 
   String extractFileOutput = "";
   String throwOutput = "";
 
   @DataBoundConstructor
-  public AssessmentBuilder(String jobName, String testFileName, String testFileUrl, String testFilePath) {
+  public AssessmentBuilder(String jobName, String testFileName, String proDetailUrl, String testFileUrl,
+      String testFileChecksum) {
     this.jobName = jobName;
     this.testFileName = testFileName;
+    this.proDetailUrl = proDetailUrl;
     this.testFileUrl = testFileUrl;
-    this.testFilePath = testFilePath;
-
-    // /var/jenkins_home/tests/oop-hw1
-    testFilePath = testDir + "/" + testFileName;
+    this.testFileChecksum = testFileChecksum;
   }
 
   public String getJobName() {
@@ -66,12 +69,16 @@ public class AssessmentBuilder extends Builder implements SimpleBuildStep {
     return testFileName;
   }
 
+  public String getProDetailUrl() {
+    return proDetailUrl;
+  }
+
   public String getTestFileUrl() {
     return testFileUrl;
   }
 
-  public String getTestFilePath() {
-    return testFilePath;
+  public String getTestFileChecksum() {
+    return testFileChecksum;
   }
 
   public String setUpCpCommand() {
@@ -85,7 +92,7 @@ public class AssessmentBuilder extends Builder implements SimpleBuildStep {
   public void cpFile() {
     File dataFile = new File(testFilePath);
     File targetFile = new File(workspaceDir + "/" + jobName);
-    if (targetFile.isDirectory()) {// 判断是否是一个目录
+    if (targetFile.isDirectory()) {// Check if it is the same file
       try {
         FileUtils.copyDirectory(dataFile, targetFile);
       } catch (IOException e) {
@@ -116,11 +123,75 @@ public class AssessmentBuilder extends Builder implements SimpleBuildStep {
 
   }
 
-  private void downloadTestZipFromTomcat() {
+  public String getProDetailJson(String proDetailUrl) {
+    String json = null;
+    HttpURLConnection conn = null;
+    try {
+      if (Thread.interrupted()) {
+        throw new InterruptedException();
+      }
+
+      URL url = new URL(proDetailUrl);
+      conn = (HttpURLConnection) url.openConnection();
+      conn.setReadTimeout(10000);
+      conn.setConnectTimeout(15000);
+      conn.setRequestMethod("GET");
+      conn.connect();
+      if (Thread.interrupted()) {
+        throw new InterruptedException();
+      }
+
+      BufferedReader reader = new BufferedReader(
+          new InputStreamReader(conn.getInputStream(), "UTF-8"));
+      String jsonString1 = reader.readLine();
+      reader.close();
+
+      json = jsonString1;
+
+    } catch (Exception e) {
+      System.out.print("Error : ");
+      e.printStackTrace();
+    } finally {
+      if (conn != null) {
+        conn.disconnect();
+      }
+    }
+    return json;
+  }
+
+  private String getCurrentChecksum(String strJson) {
+    JSONObject json = new JSONObject(strJson);
+    String currentChecksum = json.getString("testZipChecksum");
+    return currentChecksum;
+  }
+
+  private String getTestZipUrl(String strJson) {
+    JSONObject json = new JSONObject(strJson);
+    String testZipUrl = json.getString("testZipUrl");
+    return testZipUrl;
+  }
+
+  private boolean checksumEquals(String currentChecksum) {
+    boolean same = true;
+
+    if (testFileChecksum.isEmpty()) {
+      same = false;
+    } else {
+      if (currentChecksum.equals(testFileChecksum)) {
+        same = true;
+      } else {
+        same = false;
+      }
+    }
+    return same;
+  }
+
+  private void downloadTestZipFromTomcat(String testZipUrl) {
     URL website;
 
-    String strUrl = "http://140.134.26.71:10088/ProgEdu/webapi/jenkins/getTestFile?filePath="
-        + "/usr/local/tomcat/temp/test/" + testFileName + ".zip";
+    // String strUrl =
+    // "http://140.134.26.71:10088/ProgEdu/webapi/jenkins/getTestFile?filePath="
+    // + "/usr/local/tomcat/temp/test/" + testFileName + ".zip";
     // http://140.134.26.71:10088/ProgEdu/webapi/jenkins/getTestFile?filePath=/usr/local/tomcat/temp/test/oop-hw1.zip
 
     // destZipPath = test zip file path
@@ -128,7 +199,7 @@ public class AssessmentBuilder extends Builder implements SimpleBuildStep {
     // /var/jenkins_home/tests/oop-hw1.zip
 
     try {
-      website = new URL(strUrl);
+      website = new URL(testZipUrl);
       ReadableByteChannel rbc = Channels.newChannel(website.openStream());
       FileOutputStream fos = new FileOutputStream(destZipPath);
       fos.getChannel().transferFrom(rbc, 0, Long.MAX_VALUE);
@@ -212,16 +283,47 @@ public class AssessmentBuilder extends Builder implements SimpleBuildStep {
   @Override
   public void perform(Run<?, ?> run, FilePath workspace, Launcher launcher, TaskListener listener)
       throws InterruptedException, IOException {
+
+    // /var/jenkins_home/tests/oop-hw1
+    testFilePath = testDir + "/" + testFileName;
+
     File testDirFile = new File(testDir);
     if (!testDirFile.exists()) {
       testDirFile.mkdirs();
     }
 
-    // download test file if test file is not exist
-    File testFile = new File(testFilePath);
-    if (!testFile.exists()) {
-      downloadTestZipFromTomcat();
+    String strJson = null;
+    String currentChecksum = null;
+    if (!proDetailUrl.equals("")) {
+      listener.getLogger().println("proDetailUrl : " + proDetailUrl);
+      strJson = getProDetailJson(proDetailUrl);
+      currentChecksum = getCurrentChecksum(strJson);
+      listener.getLogger().println("strJson : " + strJson);
     }
+    boolean checksumEquals = checksumEquals(currentChecksum);
+    listener.getLogger().println("checksumEquals : " + checksumEquals);
+
+    if (!checksumEquals) {
+      // checksum is diff, download zip file
+      String testZipUrl = getTestZipUrl(strJson);
+
+      testFileChecksum = currentChecksum;
+      testFileUrl = testZipUrl;
+
+      listener.getLogger().println("currentChecksum : " + currentChecksum);
+      listener.getLogger().println("testZipUrl : " + testZipUrl);
+
+      // download test file if test file is not exist
+      listener.getLogger().println("testFilePath : " + testFilePath);
+      File testFile = new File(testFilePath);
+      if (testFile.exists()) {
+        testFile.delete();
+      }
+      downloadTestZipFromTomcat(testZipUrl);
+    } else {
+      // checksum is same, do nothing
+    }
+
     listener.getLogger().println("testFilePath : " + testFilePath);
     listener.getLogger().println("extractFileOutput : " + extractFileOutput);
     listener.getLogger().println("throwOutput : " + throwOutput);
