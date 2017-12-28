@@ -48,9 +48,6 @@ public class AssessmentBuilder extends Builder implements SimpleBuildStep {
   // 12345678
   private String testFilePath = "";
 
-  String extractFileOutput = "";
-  String throwOutput = "";
-
   @DataBoundConstructor
   public AssessmentBuilder(String jobName, String testFileName, String proDetailUrl, String testFileUrl,
       String testFileChecksum) {
@@ -96,13 +93,12 @@ public class AssessmentBuilder extends Builder implements SimpleBuildStep {
       try {
         FileUtils.copyDirectory(dataFile, targetFile);
       } catch (IOException e) {
-        // TODO Auto-generated catch block
         e.printStackTrace();
       }
     }
   }
 
-  private void execLinuxCommand(String command) {
+  public void execLinuxCommand(String command) {
     Process process;
 
     try {
@@ -117,7 +113,6 @@ public class AssessmentBuilder extends Builder implements SimpleBuildStep {
         System.out.println(line);
       }
     } catch (IOException e) {
-      // TODO Auto-generated catch block
       e.printStackTrace();
     }
 
@@ -186,7 +181,7 @@ public class AssessmentBuilder extends Builder implements SimpleBuildStep {
     return same;
   }
 
-  private void downloadTestZipFromTomcat(String testZipUrl) {
+  private void downloadTestZipFromTomcat(String testZipUrl, TaskListener listener) {
     URL website;
 
     // String strUrl =
@@ -197,18 +192,23 @@ public class AssessmentBuilder extends Builder implements SimpleBuildStep {
     // destZipPath = test zip file path
     String destZipPath = testFilePath + ".zip";
     // /var/jenkins_home/tests/oop-hw1.zip
-
+    FileOutputStream fos = null;
     try {
       website = new URL(testZipUrl);
       ReadableByteChannel rbc = Channels.newChannel(website.openStream());
-      FileOutputStream fos = new FileOutputStream(destZipPath);
+      fos = new FileOutputStream(destZipPath);
       fos.getChannel().transferFrom(rbc, 0, Long.MAX_VALUE);
     } catch (IOException e) {
-      // TODO Auto-generated catch block
-      throwOutput = throwOutput + "\n" + e.getMessage();
+      listener.getLogger().println("exception : " + e.getMessage());
       e.printStackTrace();
+    } finally {
+      try {
+        fos.close();
+      } catch (IOException e) {
+        listener.getLogger().println("exception : " + e.getMessage());
+      }
     }
-    unzip(destZipPath, testFilePath);
+    unzip(destZipPath, testFilePath, listener);
   }
 
   /**
@@ -223,7 +223,7 @@ public class AssessmentBuilder extends Builder implements SimpleBuildStep {
    * @param zipFilePath
    * @param destDirectory
    */
-  private void unzip(String zipFilePath, String destDirectory) {
+  private void unzip(String zipFilePath, String destDirectory, TaskListener listener) {
     File destDir = new File(destDirectory);
     if (!destDir.exists()) {
       destDir.mkdir();
@@ -238,7 +238,7 @@ public class AssessmentBuilder extends Builder implements SimpleBuildStep {
         File newFile = new File(filePath);
 
         System.out.println("filePath : " + filePath);
-        extractFileOutput += extractFileOutput + "\n" + filePath;
+        listener.getLogger().println("filePath : " + filePath);
 
         // create all non exists folders
         // else you will hit FileNotFoundException for compressed folder
@@ -257,8 +257,7 @@ public class AssessmentBuilder extends Builder implements SimpleBuildStep {
       }
       zipIn.close();
     } catch (IOException e) {
-      // TODO Auto-generated catch block
-      throwOutput = throwOutput + "\n" + e.getMessage();
+      listener.getLogger().println("exception : " + e.getMessage());
       e.printStackTrace();
     }
   }
@@ -319,14 +318,12 @@ public class AssessmentBuilder extends Builder implements SimpleBuildStep {
       if (testFile.exists()) {
         testFile.delete();
       }
-      downloadTestZipFromTomcat(testZipUrl);
+      downloadTestZipFromTomcat(testZipUrl, listener);
     } else {
       // checksum is same, do nothing
     }
 
     listener.getLogger().println("testFilePath : " + testFilePath);
-    listener.getLogger().println("extractFileOutput : " + extractFileOutput);
-    listener.getLogger().println("throwOutput : " + throwOutput);
 
     // cpFile();
     String cpCommand = setUpCpCommand();
