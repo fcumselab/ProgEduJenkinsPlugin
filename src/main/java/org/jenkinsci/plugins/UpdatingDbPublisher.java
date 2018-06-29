@@ -72,9 +72,6 @@ public class UpdatingDbPublisher extends Recorder {
 
       int responseCode = conn.getResponseCode();
 
-      // System.out.println("\nSending 'POST' request to URL : " + checkurl);
-      // System.out.println("Post parameters : " + urlParameters);
-      // System.out.println("Response Code : " + responseCode);
       listener.getLogger().println("\nSending 'POST' request to URL : " + checkurl);
       listener.getLogger().println("Post parameters : " + urlParameters);
       listener.getLogger().println("Response Code : " + responseCode);
@@ -87,9 +84,10 @@ public class UpdatingDbPublisher extends Recorder {
         sb.append(line + "\n");
       }
 
-      br.close();
+      listener.getLogger().println("WEB return value is : " + sb);
 
-      System.out.println("WEB return value is : " + sb);
+      conn.disconnect();
+      br.close();
     } catch (IOException e) {
       e.printStackTrace();
     }
@@ -97,10 +95,14 @@ public class UpdatingDbPublisher extends Recorder {
 
   @Override
   public boolean perform(AbstractBuild build, Launcher launcher, BuildListener listener) {
+    listener.getLogger()
+        .println("--------------------------UpdateDbPublisher--------------------------------");
     listener.getLogger().println("progeduDbUrl : " + progeduDbUrl);
     listener.getLogger().println("user : " + user);
     listener.getLogger().println("proName : " + proName);
     post(listener);
+    listener.getLogger()
+        .println("--------------------------UpdateDbPublisher--------------------------------");
     return true;
   }
 
@@ -135,7 +137,7 @@ public class UpdatingDbPublisher extends Recorder {
      * This human readable name is used in the configuration screen.
      */
     public String getDisplayName() {
-      return "ProgEdu update console to database";
+      return "ProgEdu Update Console to Database";
     }
   }
 

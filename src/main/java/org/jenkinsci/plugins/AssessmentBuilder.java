@@ -11,6 +11,8 @@ import java.net.HttpURLConnection;
 import java.net.URL;
 import java.nio.channels.Channels;
 import java.nio.channels.ReadableByteChannel;
+import java.util.zip.CRC32;
+import java.util.zip.CheckedInputStream;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipInputStream;
 
@@ -40,17 +42,21 @@ public class AssessmentBuilder extends Builder implements SimpleBuildStep {
   private String jobName = ""; // for workspace
   private String testFileName = ""; // tomcat test zip file path
   // ex. oop-hw1
+
   private String proDetailUrl = "";
   // http://140.134.26.71:10088/ProgEdu/webapi/project/checksum?proName=OOP-HW1
+
   private String testFileUrl = "";
   // http://140.134.26.71:10088/ProgEdu/webapi/jenkins/getTestFile?filePath=/usr/local/tomcat/temp/test/oop-hw1.zip
+
   private String testFileChecksum = "";
   // 12345678
+
   private String testFilePath = "";
 
   @DataBoundConstructor
-  public AssessmentBuilder(String jobName, String testFileName, String proDetailUrl, String testFileUrl,
-      String testFileChecksum) {
+  public AssessmentBuilder(String jobName, String testFileName, String proDetailUrl,
+      String testFileUrl, String testFileChecksum) {
     this.jobName = jobName;
     this.testFileName = testFileName;
     this.proDetailUrl = proDetailUrl;
@@ -78,14 +84,6 @@ public class AssessmentBuilder extends Builder implements SimpleBuildStep {
     return testFileChecksum;
   }
 
-  public String setUpCpCommand() {
-    String cpCommand = "";
-    // cpCommand = "cp -r " + tempDir + "/progedu/" + testFileName + "
-    // /var/jenkins_home/workspace/" + jobName + "/src";
-    cpCommand = "cp -r " + testFilePath + "/src/test " + workspaceDir + "/" + jobName + "/src";
-    return cpCommand;
-  }
-
   public void cpFile() {
     File dataFile = new File(testFilePath);
     File targetFile = new File(workspaceDir + "/" + jobName);
@@ -96,26 +94,6 @@ public class AssessmentBuilder extends Builder implements SimpleBuildStep {
         e.printStackTrace();
       }
     }
-  }
-
-  public void execLinuxCommand(String command) {
-    Process process;
-
-    try {
-      process = Runtime.getRuntime().exec(command);
-      BufferedReader br = new BufferedReader(new InputStreamReader(process.getInputStream()));
-      String line;
-      while (true) {
-        line = br.readLine();
-        if (line == null) {
-          break;
-        }
-        System.out.println(line);
-      }
-    } catch (IOException e) {
-      e.printStackTrace();
-    }
-
   }
 
   public String getProDetailJson(String proDetailUrl) {
@@ -154,7 +132,7 @@ public class AssessmentBuilder extends Builder implements SimpleBuildStep {
     return json;
   }
 
-  private String getCurrentChecksum(String strJson) {
+  private String getDatabaseChecksum(String strJson) {
     JSONObject json = new JSONObject(strJson);
     String currentChecksum = json.getString("testZipChecksum");
     return currentChecksum;
@@ -166,28 +144,35 @@ public class AssessmentBuilder extends Builder implements SimpleBuildStep {
     return testZipUrl;
   }
 
-  private boolean checksumEquals(String currentChecksum) {
-    boolean same = true;
+  private String getChecksumFromZip(String zipFilePath) {
+    String strChecksum = "";
 
-    if (testFileChecksum.isEmpty()) {
-      same = false;
-    } else {
-      if (currentChecksum.equals(testFileChecksum)) {
-        same = true;
-      } else {
-        same = false;
+    CheckedInputStream cis = null;
+    try {
+      cis = new CheckedInputStream(new FileInputStream(zipFilePath), new CRC32());
+      byte[] buf = new byte[1024];
+      // noinspection StatementWithEmptyBody
+      while (cis.read(buf) >= 0) {
+      }
+      System.out.println(cis.getChecksum().getValue());
+      strChecksum = String.valueOf(cis.getChecksum().getValue());
+    } catch (IOException e) {
+      e.printStackTrace();
+    } finally {
+      if (cis != null) {
+        try {
+          cis.close();
+        } catch (IOException e) {
+          e.printStackTrace();
+        }
       }
     }
-    return same;
+
+    return strChecksum;
   }
 
   private void downloadTestZipFromTomcat(String testZipUrl, TaskListener listener) {
     URL website;
-
-    // String strUrl =
-    // "http://140.134.26.71:10088/ProgEdu/webapi/jenkins/getTestFile?filePath="
-    // + "/usr/local/tomcat/temp/test/" + testFileName + ".zip";
-    // http://140.134.26.71:10088/ProgEdu/webapi/jenkins/getTestFile?filePath=/usr/local/tomcat/temp/test/oop-hw1.zip
 
     // destZipPath = test zip file path
     String destZipPath = testFilePath + ".zip";
@@ -208,7 +193,21 @@ public class AssessmentBuilder extends Builder implements SimpleBuildStep {
         listener.getLogger().println("exception : " + e.getMessage());
       }
     }
-    unzip(destZipPath, testFilePath, listener);
+  }
+
+  private boolean checksumEquals(String currentChecksum) {
+    boolean same = true;
+
+    if (testFileChecksum.isEmpty()) {
+      same = false;
+    } else {
+      if (currentChecksum.equals(testFileChecksum)) {
+        same = true;
+      } else {
+        same = false;
+      }
+    }
+    return same;
   }
 
   /**
@@ -217,8 +216,8 @@ public class AssessmentBuilder extends Builder implements SimpleBuildStep {
   private static final int BUFFER_SIZE = 4096;
 
   /**
-   * Extracts a zip file specified by the zipFilePath to a directory specified
-   * by destDirectory (will be created if does not exists)
+   * Extracts a zip file specified by the zipFilePath to a directory specified by destDirectory
+   * (will be created if does not exists)
    * 
    * @param zipFilePath
    * @param destDirectory
@@ -227,10 +226,18 @@ public class AssessmentBuilder extends Builder implements SimpleBuildStep {
     File destDir = new File(destDirectory);
     if (!destDir.exists()) {
       destDir.mkdir();
+    } else {
+      destDir.delete();
     }
-    ZipInputStream zipIn;
+
+    execLinuxCommand("rm -rf " + destDirectory, listener);
+
+    FileInputStream fileInputStream = null;
+    ZipInputStream zipIn = null;
     try {
-      zipIn = new ZipInputStream(new FileInputStream(zipFilePath));
+      fileInputStream = new FileInputStream(zipFilePath);
+      listener.getLogger().println(" checksum in zip does not equals to checksum in setting");
+      zipIn = new ZipInputStream(fileInputStream);
       ZipEntry entry = zipIn.getNextEntry();
       // iterates over entries in the zip file
       while (entry != null) {
@@ -254,11 +261,18 @@ public class AssessmentBuilder extends Builder implements SimpleBuildStep {
         }
         zipIn.closeEntry();
         entry = zipIn.getNextEntry();
+
       }
-      zipIn.close();
     } catch (IOException e) {
       listener.getLogger().println("exception : " + e.getMessage());
       e.printStackTrace();
+    } finally {
+      try {
+        fileInputStream.close();
+        zipIn.close();
+      } catch (IOException e) {
+        e.printStackTrace();
+      }
     }
   }
 
@@ -279,59 +293,105 @@ public class AssessmentBuilder extends Builder implements SimpleBuildStep {
     bos.close();
   }
 
+  private void execLinuxCommand(String command, TaskListener listener) {
+    Process process;
+
+    try {
+      process = Runtime.getRuntime().exec(command);
+      BufferedReader br = new BufferedReader(new InputStreamReader(process.getInputStream()));
+      String line;
+      while (true) {
+        line = br.readLine();
+        if (line == null) {
+          break;
+        }
+        System.out.println(line);
+        listener.getLogger().println("line : " + line);
+      }
+    } catch (IOException e) {
+      // TODO Auto-generated catch block
+      e.printStackTrace();
+    }
+
+  }
+
   @Override
   public void perform(Run<?, ?> run, FilePath workspace, Launcher launcher, TaskListener listener)
       throws InterruptedException, IOException {
 
-    // /var/jenkins_home/tests/oop-hw1
-    testFilePath = testDir + "/" + testFileName;
-
+    // open /var/jenkins_home/tests
     File testDirFile = new File(testDir);
     if (!testDirFile.exists()) {
       testDirFile.mkdirs();
     }
 
     String strJson = null;
-    String currentChecksum = null;
     if (!proDetailUrl.equals("")) {
-      listener.getLogger().println("proDetailUrl : " + proDetailUrl);
       strJson = getProDetailJson(proDetailUrl);
-      currentChecksum = getCurrentChecksum(strJson);
-      listener.getLogger().println("strJson : " + strJson);
     }
-    boolean checksumEquals = checksumEquals(currentChecksum);
-    listener.getLogger().println("checksumEquals : " + checksumEquals);
 
-    if (!checksumEquals) {
-      // checksum is diff, download zip file
-      String testZipUrl = getTestZipUrl(strJson);
+    // /var/jenkins_home/tests/oop-hw1
+    testFilePath = testDir + "/" + testFileName;
 
-      testFileChecksum = currentChecksum;
-      testFileUrl = testZipUrl;
+    String tempZipChecksum = null;
+    String testZipUrl = getTestZipUrl(strJson);
 
-      listener.getLogger().println("currentChecksum : " + currentChecksum);
-      listener.getLogger().println("testZipUrl : " + testZipUrl);
+    File zipTestFile = new File(testFilePath + ".zip");
+    if (!zipTestFile.exists()) {
+      // If test zip file does not exist, download it.
 
-      // download test file if test file is not exist
-      listener.getLogger().println("testFilePath : " + testFilePath);
-      File testFile = new File(testFilePath);
-      if (testFile.exists()) {
-        testFile.delete();
-      }
+      // 1. Get the zip url from tomcat
+      testZipUrl = getTestZipUrl(strJson);
+
+      // 2. Download the zip to /var/jenkins_home/tests/OOP-HWX.zip
       downloadTestZipFromTomcat(testZipUrl, listener);
+
+      // 3. Unzip the zip
+      unzip(testFilePath + ".zip", testFilePath, listener);
+
+      // 4. Get the checksum from temp zip
+      tempZipChecksum = getChecksumFromZip(testFilePath + ".zip");
+
+      // 5. Change the detail in Jenkins job
+      testFileChecksum = tempZipChecksum;
+      testFileUrl = testZipUrl;
     } else {
-      // checksum is same, do nothing
+      // Zip file exists.
+
+      // 1. Get the current temp zip checksum
+      tempZipChecksum = getChecksumFromZip(testFilePath + ".zip");
+
+      // 2. Get the current database checksum
+      String databaseChecksum = getDatabaseChecksum(strJson);
+
+      // 3. Check this tempZipChecksum equals to databaseChecksum
+      if (tempZipChecksum.equals(databaseChecksum)) {
+        // tempZipChecksum equals to databaseChecksum
+
+        // Check if the zip has been already unzip
+        File testFile = new File(testFilePath);
+        if (testFile.exists()) {
+          // testFile exists
+
+          // copy to workspace
+        } else {
+          // testFile doesn't exist
+          unzip(testFilePath + ".zip", testFilePath, listener);
+        }
+      } else {
+        // tempZipChecksum doesn't equal to databaseChecksum
+        testZipUrl = getTestZipUrl(strJson);
+        downloadTestZipFromTomcat(testZipUrl, listener);
+        unzip(testFilePath + ".zip", testFilePath, listener);
+      }
     }
 
-    listener.getLogger().println("testFilePath : " + testFilePath);
-
-    // cpFile();
-    String cpCommand = setUpCpCommand();
-    // execLinuxCommand(cpCommand);
+    // Final
+    // Copy test file to workspace
+    // Change the detail checksum with temp zip
     cpFile();
-    listener.getLogger().println("cpCommand : " + cpCommand);
-    listener.getLogger().println("jobName : " + jobName);
-    listener.getLogger().println("testFileName : " + testFileName);
+    testFileChecksum = tempZipChecksum;
+    testFileUrl = testZipUrl;
 
   }
 
@@ -350,5 +410,4 @@ public class AssessmentBuilder extends Builder implements SimpleBuildStep {
     }
 
   }
-
 }
