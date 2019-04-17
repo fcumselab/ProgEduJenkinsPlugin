@@ -47,7 +47,7 @@ public class AssessmentBuilder extends Builder implements SimpleBuildStep {
   // http://140.134.26.71:10088/ProgEdu/webapi/project/checksum?proName=OOP-HW1
 
   private String testFileUrl = "";
-  // http://140.134.26.71:10088/ProgEdu/webapi/jenkins/getTestFile?filePath=/usr/local/tomcat/temp/test/oop-hw1.zip
+  // http://140.134.26.71:10088/ProgEdu/webapi/jenkins/getTestFile?filePath=/usr/local/tomcat/temp/tests/oop-hw1.zip
 
   private String testFileChecksum = "";
   // 12345678
