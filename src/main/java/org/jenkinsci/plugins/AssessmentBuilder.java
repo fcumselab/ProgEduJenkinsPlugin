@@ -216,8 +216,8 @@ public class AssessmentBuilder extends Builder implements SimpleBuildStep {
   private static final int BUFFER_SIZE = 4096;
 
   /**
-   * Extracts a zip file specified by the zipFilePath to a directory specified by destDirectory
-   * (will be created if does not exists)
+   * Extracts a zip file specified by the zipFilePath to a directory specified
+   * by destDirectory (will be created if does not exists)
    * 
    * @param zipFilePath
    * @param destDirectory
@@ -315,6 +315,10 @@ public class AssessmentBuilder extends Builder implements SimpleBuildStep {
 
   }
 
+  private void deleteFile(String filePath, TaskListener listener) {
+    execLinuxCommand("rm -rf " + filePath, listener);
+  }
+
   @Override
   public void perform(Run<?, ?> run, FilePath workspace, Launcher launcher, TaskListener listener)
       throws InterruptedException, IOException {
@@ -385,6 +389,13 @@ public class AssessmentBuilder extends Builder implements SimpleBuildStep {
         unzip(testFilePath + ".zip", testFilePath, listener);
       }
     }
+
+    // Delete jenkins_home/tests/oop-hw1/src/main
+    deleteFile(testFilePath + "/src/main", listener);
+
+    // Delete jenkins_home/workspace/oop-hw1/pom.xml
+    // Delete jenkins_home/workspace/oop-hw1/config
+    // Delete jenkins_home/workspace/oop-hw1/src/test
 
     // Final
     // Copy test file to workspace
