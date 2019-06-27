@@ -390,11 +390,6 @@ public class AssessmentBuilder extends Builder implements SimpleBuildStep {
       }
     }
 
-    // Delete jenkins_home/tests/oop-hw1/src/main
-    deleteFile(testFilePath + "/src/main", listener);
-    // Delete jenkins_home/tests/oop-hw1/src/web for WEB project
-    deleteFile(testFilePath + "/src/web", listener);
-
     // Delete jenkins_home/workspace/t1234567_oop-hw1/pom.xml
     deleteFile(workspaceDir + "/" + jobName + "/pom.xml", listener);
     // Delete jenkins_home/workspace/t1234567_oop-hw1/config
