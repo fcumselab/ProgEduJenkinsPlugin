@@ -132,9 +132,9 @@ public class AssessmentBuilder extends Builder implements SimpleBuildStep {
     return json;
   }
 
-  private String getDatabaseChecksum(String strJson) {
+  private Long getDatabaseChecksum(String strJson) {
     JSONObject json = new JSONObject(strJson);
-    String currentChecksum = json.getString("testZipChecksum");
+    Long currentChecksum = json.getLong("testZipChecksum");
     return currentChecksum;
   }
 
@@ -216,8 +216,8 @@ public class AssessmentBuilder extends Builder implements SimpleBuildStep {
   private static final int BUFFER_SIZE = 4096;
 
   /**
-   * Extracts a zip file specified by the zipFilePath to a directory specified
-   * by destDirectory (will be created if does not exists)
+   * Extracts a zip file specified by the zipFilePath to a directory specified by
+   * destDirectory (will be created if does not exists)
    * 
    * @param zipFilePath
    * @param destDirectory
@@ -366,7 +366,7 @@ public class AssessmentBuilder extends Builder implements SimpleBuildStep {
       tempZipChecksum = getChecksumFromZip(testFilePath + ".zip");
 
       // 2. Get the current database checksum
-      String databaseChecksum = getDatabaseChecksum(strJson);
+      Long databaseChecksum = getDatabaseChecksum(strJson);
 
       // 3. Check this tempZipChecksum equals to databaseChecksum
       if (tempZipChecksum.equals(databaseChecksum)) {
